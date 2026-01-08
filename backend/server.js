@@ -1,31 +1,25 @@
 import express from "express";
-import cors from "cors";
 import dotenv from "dotenv";
+import cors from "cors";
 import paymentRoutes from "./routes/paymentRoutes.js";
-import { connectDB } from "./config/db.js";
+import bodyParser from "body-parser";
 
 dotenv.config();
 const app = express();
 
-connectDB();
-
-// Normal JSON
-app.use(express.json());
-
-// CORS
 app.use(
   cors({
-    origin: process.env.CLIENT_URL,
-    credentials: true
+    origin: [process.env.CLIENT_URL, "http://localhost:5173", "http://localhost:5174"],
+    credentials: true,
   })
 );
 
-// Test
-app.get("/", (req, res) => {
-  res.send("Stripe Server is running");
-});
-
+app.use(bodyParser.json());
 app.use("/", paymentRoutes);
+
+app.get("/", (req, res) => {
+  res.send("Stripe Backend Running");
+});
 
 app.listen(process.env.PORT, () =>
   console.log(`Server running on port ${process.env.PORT}`)

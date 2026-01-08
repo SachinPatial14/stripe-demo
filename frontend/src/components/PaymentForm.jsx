@@ -19,8 +19,11 @@ export default function PaymentForm() {
       setLoading(true);
       setMsg("");
 
+      // Convert USD → cents
+      const payAmount = Number(amount) * 100;
+
       const { data } = await API.post("/create-payment-intent", {
-        amount,
+        amount: payAmount,
         email
       });
 
@@ -33,7 +36,16 @@ export default function PaymentForm() {
       if (result.error) {
         setMsg(result.error.message);
       } else if (result.paymentIntent.status === "succeeded") {
-        setMsg("Payment Done 🎉 Receipt sent via email");
+        setMsg("Payment Done");
+
+        await API.post("/save-payment", {
+          payment_intent_id: result.paymentIntent.id,
+          amount: result.paymentIntent.amount,
+          currency: result.paymentIntent.currency,
+          status: result.paymentIntent.status,
+          email
+        });
+
         setAmount("");
         setEmail("");
       }
@@ -47,14 +59,12 @@ export default function PaymentForm() {
 
   return (
     <div className="max-w-lg mx-auto bg-white shadow-xl rounded-2xl p-8">
-      <h2 className="text-2xl font-bold text-gray-800 mb-5">
-        Stripe Payment
-      </h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-5">Stripe Payment</h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <input
           type="email"
-          placeholder="Customer Email (receipt sent here)"
+          placeholder="Customer Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -71,7 +81,16 @@ export default function PaymentForm() {
         />
 
         <div className="border p-4 rounded-lg bg-gray-50">
-          <CardElement />
+          <CardElement
+            options={{
+              hidePostalCode: true,
+              style: {
+                base: {
+                  fontSize: "16px"
+                }
+              }
+            }}
+          />
         </div>
 
         <button
@@ -84,11 +103,10 @@ export default function PaymentForm() {
 
       {msg && (
         <p
-          className={`mt-4 text-center font-semibold p-3 rounded-lg ${
-            msg.includes("Done")
+          className={`mt-4 text-center font-semibold p-3 rounded-lg ${msg.includes("Done")
               ? "bg-green-100 text-green-700"
               : "bg-red-100 text-red-700"
-          }`}
+            }`}
         >
           {msg}
         </p>

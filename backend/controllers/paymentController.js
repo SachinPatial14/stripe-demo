@@ -1,63 +1,63 @@
-import { stripe } from "../config/stripe.js";
-import { Payment } from "../models/Payment.js";
+import Stripe from "stripe";
+import { pool } from "../db.js";
+import { encrypt } from "../utils/encryption.js";
+import dotenv from "dotenv";
+dotenv.config();
 
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+// ---------- CREATE PAYMENT ----------
 export const createPaymentIntent = async (req, res) => {
   try {
     const { amount, email } = req.body;
 
-    if (!amount || !email)
-      return res.status(400).json({ message: "Amount & email required" });
-
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount * 100,
-      currency: "usd",
-      receipt_email: email,
-      automatic_payment_methods: { enabled: true }
-    });
-
-    await Payment.create({
-      paymentIntentId: paymentIntent.id,
-      email,
       amount,
-      status: "created"
+      currency: "usd",
+      receipt_email: email
     });
 
     res.json({
-      success: true,
-      clientSecret: paymentIntent.client_secret
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+      status: paymentIntent.status,
+      amount,
+      email
     });
+
   } catch (err) {
     console.log(err);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ message: "Payment failed" });
   }
 };
 
-// Stripe Webhook → Confirms Payment + Update DB
-export const stripeWebhook = async (req, res) => {
-  let event;
 
+// ---------- SAVE PAYMENT ----------
+export const savePayment = async (req, res) => {
   try {
-    const sig = req.headers["stripe-signature"];
-    event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
+    const { payment_intent_id, amount, currency, status, email } = req.body;
+    if (!payment_intent_id || !email) {
+      console.log("Missing Fields", req.body);
+      return res.status(400).json({ message: "Missing payment data" });
+    }
+
+    await pool.query(
+      `INSERT INTO payments(payment_intent_id, amount, currency, status, email)
+       VALUES($1,$2,$3,$4,$5)`,
+      [
+        encrypt(payment_intent_id),
+        amount,
+        currency,
+        status,
+        encrypt(email)
+      ]
     );
+
+    console.log("Encrypted Payment Saved");
+    res.json({ success: true });
+
   } catch (err) {
-    console.error("Webhook Signature Error:", err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    console.log("DB Save Error:", err);
+    res.status(500).json({ message: "DB Save Failed" });
   }
-
-  if (event.type === "payment_intent.succeeded") {
-    const paymentIntent = event.data.object;
-
-    await Payment.findOneAndUpdate(
-      { paymentIntentId: paymentIntent.id },
-      { status: "succeeded" }
-    );
-
-    console.log("Payment Success Saved");
-  }
-
-  res.json({ received: true });
 };
