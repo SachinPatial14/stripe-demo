@@ -41,12 +41,16 @@ export const savePayment = async (req, res) => {
       return res.status(400).json({ message: "Missing payment data" });
     }
 
+    const amountToSave = typeof amount !== "undefined" && amount !== null
+      ? Number(amount) / 100
+      : null;
+
     await pool.query(
       `INSERT INTO payments(payment_intent_id, amount, currency, status, email)
        VALUES($1,$2,$3,$4,$5)`,
       [
         encrypt(payment_intent_id),
-        amount,
+        amountToSave,
         currency,
         status,
         encrypt(email)

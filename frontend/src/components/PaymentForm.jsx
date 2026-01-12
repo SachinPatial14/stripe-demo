@@ -1,6 +1,8 @@
 import { CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { useState } from "react";
 import { API } from "../utils/api";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 export default function PaymentForm() {
   const stripe = useStripe();
@@ -19,7 +21,6 @@ export default function PaymentForm() {
       setLoading(true);
       setMsg("");
 
-      // Convert USD → cents
       const payAmount = Number(amount) * 100;
 
       const { data } = await API.post("/create-payment-intent", {
@@ -35,8 +36,9 @@ export default function PaymentForm() {
 
       if (result.error) {
         setMsg(result.error.message);
+        toast.error(result.error.message);
       } else if (result.paymentIntent.status === "succeeded") {
-        setMsg("Payment Done");
+        toast.success("Payment successful");
 
         await API.post("/save-payment", {
           payment_intent_id: result.paymentIntent.id,
@@ -100,6 +102,17 @@ export default function PaymentForm() {
           {loading ? "Processing..." : "Pay Now"}
         </button>
       </form>
+
+      <ToastContainer position="top-right" />
+
+      {loading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 border-4 border-t-transparent border-white rounded-full animate-spin" />
+            <p className="mt-4 text-white">Processing payment...</p>
+          </div>
+        </div>
+      )}
 
       {msg && (
         <p
